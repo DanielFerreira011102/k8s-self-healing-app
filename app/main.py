@@ -88,12 +88,11 @@ def home():
     """
     The root or informational endpoint (`/`).
 
-    This endpoint is designed to be the primary entry point for verifying that
-    the service is reachable and inspecting its current state. The response 
-    includes configuration details (version, environment) and runtime 
-    information from the host container (Pod Name, IP, uptime), allowing clients 
-    to quickly identify the specific backend replica serving the request behind 
-    a load balancer.
+    This endpoint is the primary way to check if the service is reachable and to inspect 
+    its current state. In this example, The response includes configuration details 
+    (version, environment) and runtime information from the host container (Pod Name, 
+    IP, uptime), allowing clients to quickly identify the specific backend replica 
+    serving the request behind a load balancer.
 
     :return: A JSON response with a snapshot of the application's current state.
     """
@@ -116,9 +115,39 @@ def home():
 @app.route('/health')
 def health():
     """
-    The standardized health check endpoint (`/health`).
+    The health check endpoint (`/health`).
     
-    ...
+    This endpoint is arguably the most important piece of code in any modern cloud-native 
+    application. Container orchestrators like **Kubernetes** and **ECS** rely heavily on 
+    these checks to manage the entire lifecycle of a container instance (Pod) and determine 
+    its ability to handle live traffic.
+
+    Orchestrators primarily use health checks for two distinct purposes, which correspond 
+    directly to the probes they configure:
+
+    1. **Liveness Probe (Is the app alive?)**  
+       Kubernetes constantly checks this probe to make sure the application process hasn't 
+       gotten stuck, frozen, or entered an unrecoverable state (like a deadlock or running 
+       out of memory). If the liveness probe fails (e.g., returns a non-200 status code or 
+       simply times out), the orchestrator assumes the application is broken and automatically 
+       **restarts the container**, hoping to bring the application back to a working state.
+
+    2. **Readiness Probe (Is the app ready to serve traffic?)**         
+       This check is about telling the load balancer whether the service is capable of 
+       handling new requests *right now*. During startup, or when the application is 
+       temporarily waiting for external resources (like initializing a connection pool 
+       to a database), the readiness probe can temporarily return a non-200 response. 
+       This signals to the load balancer that the Pod should be **removed from the service 
+       pool** until the check passes, at which point the Pod is automatically reinstated.
+
+    For very simple, standalone services that have no external dependencies (no database, 
+    no external APIs to wait for), a single endpoint like this one can safely serve both 
+    the liveness and readiness checks by just returning a **200 OK** status as long as the 
+    application process is running. However, for anything even moderately complex, it is usually 
+    better to split them into separate, dedicated endpoints, commonly named `/livez` and `/readyz`. 
+    The "z" at the end is a long-standing convention used to distinguish endpoints intended for 
+    **programmatic access** by monitoring tools and service orchestrators, as opposed to 
+    those intended for **end users**.
 
     :return: A JSON response with status 'healthy' and HTTP status code 200.
     """
@@ -165,18 +194,22 @@ def crash():
 
     :return: (Unreachable) A JSON response describing the crash.
     """
-    # 1. Build the Response object in memory.
-    # This prepares the data that *would* be sent if the route were
-    # allowed to complete normally. However, since we exit immediately,
-    # Flask never gets a chance to transmit it to the client.
+    # The first thing we need to do is create a Flask response object.
+    # This prepares the data (the JSON payload) that would normally be
+    # sent back to the client if the process did not crash.
     response = jsonify({
         'message': 'Initiating fatal crash to test Liveness Probe recovery...',
         'pod': get_pod_info()['hostname']
     })
 
-    # We deliberately AVOID using the @after_this_request decorator, which would 
-    # schedule the exit *after* the response is sent, because that would simulate 
-    # a graceful shutdown, not a hard crash.
+    # We then call `os._exit(1)` to immediately terminate the process.
+    # `os._exit(1)` performs a low-level exit (a syscall) that bypasses ALL standard Python
+    # cleanup routines (e.g., `finally` blocks, `atexit` handlers, I/O buffer flushing). 
+    # This makes it a much better choice than `sys.exit(1)` or `exit(1)` for simulating a true, 
+    # immediate, unrecoverable crash (like a segmentation fault or an out-of-memory error).
+    # NOTE: We deliberately AVOID the `@after_this_request` decorator, which would
+    # schedule the exit *after* the response is sent. That would simulate a graceful
+    # shutdown, not a hard crash.
     os._exit(1) 
     
     # This return statement is UNREACHABLE due to os._exit(1) above.
