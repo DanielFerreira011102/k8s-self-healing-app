@@ -118,8 +118,8 @@ def health():
     The health check endpoint (`/health`).
     
     This endpoint is arguably the most important piece of code in any modern cloud-native 
-    application. Container orchestrators like **Kubernetes** and **ECS** rely heavily on 
-    these checks to manage the entire lifecycle of a container instance (Pod) and determine 
+    application. Container orchestrators like Kubernetes and ECS rely heavily on these 
+    checks to manage the entire lifecycle of a container instance (Pod) and determine 
     its ability to handle live traffic.
 
     Orchestrators primarily use health checks for two distinct purposes, which correspond 
