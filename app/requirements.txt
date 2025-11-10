@@ -1,33 +1,5 @@
-# -----------------------------------------------------------------------------
-# 1. THE WEB FRAMEWORK
-# -----------------------------------------------------------------------------
-# Flask is a "micro-framework" for building web applications in Python. 
-# It provides the core structure and tools needed to handle routing (mapping URLs
-# to Python functions), processing requests, and generating responses.
-# It is essentially the **brain** of our application, where all the business logic lives.
-Flask==3.1.2 
+# Web Application Framework
+Flask==3.1.2
 
-# -----------------------------------------------------------------------------
-# 2. FLASK'S CORE DEPENDENCY (THE ENGINE ROOM)
-# -----------------------------------------------------------------------------
-# Werkzeug is a powerful WSGI (Web Server Gateway Interface) utility library. 
-# **WSGI is the standard contract** that allows Python applications (like Flask) 
-# to talk to web servers (like Gunicorn).
-# Flask is built directly on top of Werkzeug, which handles many of the low-level, 
-# complex details of the HTTP protocol, such as managing request/response objects 
-# and URL routing. You typically don't interact with Werkzeug directly, but 
-# **it is automatically installed** when you install Flask.
-Werkzeug==3.1.2 
-
-# -----------------------------------------------------------------------------
-# 3. THE PRODUCTION SERVER (SCALABILITY AND RELIABILITY)
-# -----------------------------------------------------------------------------
-# Gunicorn (Green Unicorn) is a robust and widely-used **production WSGI HTTP Server**.
-# While Flask comes with a simple built-in development server (perfect for testing),
-# it is not designed to handle high traffic, security, or concurrency in a live environment.
-# Gunicorn solves this by:
-# - Launching multiple **worker processes** to handle many user requests simultaneously.
-# - Providing a **stable and self-healing** environment that monitors workers for crashes.
-# - It acts as the industrial-strength **engine** that serves our Flask application
-#   to the world efficiently. 
+# Production WSGI Server
 gunicorn==23.0.0
