@@ -117,34 +117,32 @@ def health():
     """
     The health check endpoint (`/health`).
     
-    This endpoint is arguably the most important piece of code in any modern cloud-native 
-    application. Container orchestrators like Kubernetes and ECS rely heavily on these 
-    checks to manage the entire lifecycle of a container instance (Pod) and determine 
-    its ability to handle live traffic.
+    This endpoint is one of the most important pieces of code in any cloud-native application.
+    Modern container orchestrators such as Kubernetes and ECS rely heavily on health checks 
+    to manage the entire lifecycle of a container instance (Pod) and to determine whether 
+    it can handle live traffic. There are different types of health checks, but the most 
+    common ones are liveness and readiness probes:
 
-    Orchestrators primarily use health checks for two distinct purposes, which correspond 
-    directly to the probes they configure:
-
-    1. **Liveness Probe (Is the app alive?)**  
-       Kubernetes constantly checks this probe to make sure the application process hasn't 
-       gotten stuck, frozen, or entered an unrecoverable state (like a deadlock or running 
-       out of memory). If the liveness probe fails (e.g., returns a non-200 status code or 
-       simply times out), the orchestrator assumes the application is broken and automatically 
+    1. **Liveness Probe (Is the app alive and healthy?)**  
+       Kubernetes periodically checks this probe to ensure the application process is running 
+       and has not become stuck, frozen, or entered an unrecoverable state (such as a deadlock 
+       or running out of memory). If the liveness probe fails (e.g., by returning a non-200 status 
+       code or timing out), the orchestrator assumes the application is broken and automatically 
        **restarts the container**, hoping to bring the application back to a working state.
 
     2. **Readiness Probe (Is the app ready to serve traffic?)**         
-       This check is about telling the load balancer whether the service is capable of 
-       handling new requests *right now*. During startup, or when the application is 
-       temporarily waiting for external resources (like initializing a connection pool 
-       to a database), the readiness probe can temporarily return a non-200 response. 
-       This signals to the load balancer that the Pod should be **removed from the service 
-       pool** until the check passes, at which point the Pod is automatically reinstated.
+       This check tells the load balancer whether the service is capable of handling new 
+       requests **right now**. During startup, or while the application waits for external
+       resources (like initializing a database connection pool), the readiness probe can 
+       temporarily return a non-200 response. This signals to the load balancer that the 
+       Pod should be **removed from the service pool** until the check passes, at which 
+       point the Pod is automatically reinstated.
 
     For very simple, standalone services that have no external dependencies (no database, 
     no external APIs to wait for), a single endpoint like this one can safely serve both 
     the liveness and readiness checks by just returning a **200 OK** status as long as the 
     application process is running. However, for anything even moderately complex, it is usually 
-    better to split them into separate, dedicated endpoints, commonly named `/livez` and `/readyz`. 
+    better to split them into separate, dedicated endpoints (e.g., `/livez` and `/readyz`).
     The "z" at the end is a long-standing convention used to distinguish endpoints intended for 
     **programmatic access** by monitoring tools and service orchestrators, as opposed to 
     those intended for **end users**.
