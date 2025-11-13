@@ -31,9 +31,9 @@ LABEL description="Self-healing Flask app for K8s demo"
 # 📂 WORKING DIRECTORY
 # ============================================================================
 
-# Here, we create and move into the /app directory. From this point on, every 
-# command  will assume that we are working inside this folder, just as if we 
-# had run `cd /app` in the terminal.
+# Here, we create and move into the /app directory. From this point on, every command 
+# will assume that we are working inside this folder, just as if we had run `cd /app` 
+# in the terminal.
 WORKDIR /app
 
 # ============================================================================
@@ -42,7 +42,7 @@ WORKDIR /app
 
 # When we build a Docker image, we are really stacking a series of layers on top 
 # of each other. Every instruction in the Dockerfile that can change the 
-# filesystem (`COPY`, `RUN`, `ADD`, …) creates a new layer, and once a layer is 
+# filesystem (`COPY`, `RUN`, `ADD`, etc.) creates a new layer, and once a layer is 
 # built, it becomes immutable. This means that if even a single byte changes in 
 # one layer, Docker has to rebuild that layer and every layer that comes after 
 # it from scratch. This is why the order of instructions in a Dockerfile has 
@@ -59,12 +59,26 @@ WORKDIR /app
 # sub-second cache hit.
 COPY requirements.txt .
 
+# Now that the `requirements.txt` file is inside the image, we can finally ask pip to 
+# fetch and install all the dependencies we need to run our application. We add the 
+# `--no-cache-dir` flag so that pip does not save temporary installation files (called 
+# 'wheels') inside the container. Those files are useful on a developer laptop where the 
+# same package might be reinstalled many times, but inside a Docker image, they are 
+# single-use garbage that only bloats the layer. Dropping them keeps the final image 
+# smaller and avoids shipping useless bytes to production.
 RUN pip install --no-cache-dir -r requirements.txt
 
 # ============================================================================
 # 💻 APPLICATION CODE
 # ============================================================================
 
+# With the Python runtime and every third-party package already baked into the image,
+# we can now go ahead and copy in our own code. When we copy files like `main.py`
+# into the image, Docker keeps track of their contents using a cryptographic hash. 
+# If we later make any change to one of those files, that hash changes too, and Docker knows
+# it needs to rebuild this layer and anything that comes after it. The good news is that
+# the layer containing all the installed dependencies stays the same, so Docker can pull
+# it straight from the cache instead of having to reinstall everything again.
 COPY main.py .
 
 # ============================================================================
