@@ -73,12 +73,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 # ============================================================================
 
 # With the Python runtime and every third-party package already baked into the image,
-# we can now go ahead and copy in our own code. When we copy files like `main.py`
-# into the image, Docker keeps track of their contents using a cryptographic hash. 
-# If we later make any change to one of those files, that hash changes too, and Docker knows
-# it needs to rebuild this layer and anything that comes after it. The good news is that
-# the layer containing all the installed dependencies stays the same, so Docker can pull
-# it straight from the cache instead of having to reinstall everything again.
+# we can now go ahead and copy in our own code. When we copy `main.py` (or any other file)
+# into the image, Docker keeps track its contents using a unique cryptographic hash. If we 
+# then change even a single byte in that file, the hash changes too, and so Docker knows
+# it needs to rebuild this layer and any layers that come after it. The good news is that
+# the `pip install` layer that contains all the installed dependencies stays the same, so 
+# Docker can pull it straight from the cache instead of having to reinstall everything again.
 COPY main.py .
 
 # ============================================================================
