@@ -31,9 +31,9 @@ LABEL description="Self-healing Flask app for K8s demo"
 # 📂 WORKING DIRECTORY
 # ============================================================================
 
-# Here, we create and move into the /app directory. From this point on, every command 
-# will assume that we are working inside this folder, just as if we had run `cd /app` 
-# in the terminal.
+# Here, we create and move into the /app directory. From this point on, every ~
+# command will assume that we are working inside this folder, just as if we had 
+# run `cd /app` in the terminal.
 WORKDIR /app
 
 # ============================================================================
@@ -59,35 +59,45 @@ WORKDIR /app
 # sub-second cache hit.
 COPY requirements.txt .
 
-# Now that the `requirements.txt` file is inside the image, we can finally ask pip to 
-# fetch and install all the dependencies we need to run our application. We add the 
-# `--no-cache-dir` flag so that pip does not save temporary installation files (called 
-# 'wheels') inside the container. Those files are useful on a developer laptop where the 
-# same package might be reinstalled many times, but inside a Docker image, they are 
-# single-use garbage that only bloats the layer. Dropping them keeps the final image 
-# smaller and avoids shipping useless bytes to production.
+# Now that the `requirements.txt` file is inside the image, we can finally ask pip
+# to fetch and install all the dependencies we need to run our application. We add 
+# the `--no-cache-dir` flag so that pip does not save temporary installation files 
+# (called 'wheels') inside the container. Those files are useful on a developer 
+# laptop where the same package might be reinstalled many times, but inside a Docker 
+# image, they are single-use garbage that only bloats the layer. Dropping them keeps 
+# the final image smaller and avoids shipping useless bytes to production.
 RUN pip install --no-cache-dir -r requirements.txt
 
 # ============================================================================
 # 💻 APPLICATION CODE
 # ============================================================================
 
-# With the Python runtime and every third-party package already baked into the image,
-# we can now go ahead and copy in our own code. When we copy `main.py` (or any other file)
-# into the image, Docker keeps track its contents using a unique cryptographic hash. If we 
-# then change even a single byte in that file, the hash changes too, and so Docker knows
-# it needs to rebuild this layer and any layers that come after it. The good news is that
-# the `pip install` layer that contains all the installed dependencies stays the same, so 
-# Docker can pull it straight from the cache instead of having to reinstall everything again.
+# When we copy `main.py` (or any other file) into the image, Docker keeps track of
+# its contents using a unique cryptographic hash. If we then change even a single 
+# byte in that file, the hash changes too, and so Docker knows that it needs to 
+# rebuild this layer and any layers that come after it. The good news is that the 
+# `pip install` layer that contains all the installed dependencies stays the same, 
+# so Docker can pull it straight from the cache instead of having to reinstall 
+# everything again.
 COPY main.py .
 
 # ============================================================================
 # 🔒 SECURITY
 # ============================================================================
 
-RUN useradd -m -s /bin/bash appuser && \
+# If we run our container using the default `root` user, any vulnerability in our 
+# application could be exploited by an attacker to gain system-wide privileges, 
+# potentially letting them install malware or access sensitive data on the host 
+# machine. To prevent this from happening, we follow the principle of least 
+# privilege by creating a special user called `appuser` that has just enough 
+# rights to run our application and nothing else. For more information on this,
+# see https://docs.docker.com/build/building/best-practices/#user
+RUN groupadd -g 1000 appuser && \
+    useradd -r -u 1000 -g appuser -s /sbin/nologin appuser && \
     chown -R appuser:appuser /app
 
+# This command switches the running context inside the container from the
+# default `root` user to our newly created `appuser`.
 USER appuser
 
 # ============================================================================
