@@ -31,7 +31,7 @@ LABEL description="Self-healing Flask app for K8s demo"
 # 📂 WORKING DIRECTORY
 # ============================================================================
 
-# Here, we create and move into the /app directory. From this point on, every ~
+# Here, we create and move into the /app directory. From this point on, every
 # command will assume that we are working inside this folder, just as if we had 
 # run `cd /app` in the terminal.
 WORKDIR /app
@@ -40,8 +40,8 @@ WORKDIR /app
 # ⚙️ INSTALLING DEPENDENCIES
 # ============================================================================
 
-# When we build a Docker image, we are really stacking a series of layers on top 
-# of each other. Every instruction in the Dockerfile that can change the 
+# When we build a Docker image, we are essentially stacking a series of layers on 
+# top of each other. Every instruction in the Dockerfile that can change the 
 # filesystem (`COPY`, `RUN`, `ADD`, etc.) creates a new layer, and once a layer is 
 # built, it becomes immutable. This means that if even a single byte changes in 
 # one layer, Docker has to rebuild that layer and every layer that comes after 
@@ -74,7 +74,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # When we copy `main.py` (or any other file) into the image, Docker keeps track of
 # its contents using a unique cryptographic hash. If we then change even a single 
-# byte in that file, the hash changes too, and so Docker knows that it needs to 
+# byte in that file, the hash changes too, and so Docker knows it needs to 
 # rebuild this layer and any layers that come after it. The good news is that the 
 # `pip install` layer that contains all the installed dependencies stays the same, 
 # so Docker can pull it straight from the cache instead of having to reinstall 
@@ -104,8 +104,21 @@ USER appuser
 # 🌐 RUNTIME CONFIGURATION
 # ============================================================================
 
+# The `EXPOSE` instruction does not actually publish the port or make it accessible
+# outside the container. It simply tells other developers and the runtime environment
+# (like Docker or Kubernetes), which ports the container will listen on at runtime.
+# In a way, it is really just a note or a declaration of intent, like another piece 
+# of metadata we attach to the image. To actually publish the port and make it available 
+# on the host machine, we must use the `-p` or `--publish` flag when running the container 
+# (e.g., docker run -p 5000:5000 app) or define port mappings in an orchestrator like 
+# Kubernetes or Docker Compose.
 EXPOSE 5000
 
+# The application reads these environment variables at startup to configure its
+# behavior. If we need different values, we can always change them on the fly 
+# without rebuilding the image by using -e flags with docker run, or by specifying 
+# them in a Docker Compose file or a Kubernetes Deployment manifest. Even so,
+# having them here means the image runs safely on its own.
 ENV APP_VERSION=1.0.0
 ENV APP_ENV=production
 ENV PORT=5000
