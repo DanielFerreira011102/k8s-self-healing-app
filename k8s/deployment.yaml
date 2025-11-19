@@ -1,0 +1,273 @@
+# Kubernetes Deployment manifest for our Flask application
+
+# In Docker, we built a single container image that packaged our code,
+# dependencies, and server into one consistent artifact. In Kubernetes, we
+# decide how many copies of that container we want to run, how those copies
+# should behave, and how the cluster should react when something goes wrong.
+# A Deployment is the tool we use to describe this desired state. It acts like
+# a set of instructions that tell the cluster what to run, how many instances
+# to keep alive, and how to replace them when we update the image. The cluster
+# uses these instructions to make sure our application remains available even
+# when machines fail or when we ship a new version of our code.
+
+apiVersion: apps/v1
+kind: Deployment
+
+# ============================================================================
+# 🏷️ METADATA
+# ============================================================================
+
+# Every object in Kubernetes carries metadata so the cluster can identify it,
+# organize it, and group it with related components. 
+
+# A Deployment is a Kubernetes object that manages a group of identical
+# application instances. These instances are called pods. A pod is the smallest
+# unit that Kubernetes schedules and runs. It is a container or a group of
+# containers with shared storage, network, and specification for how to run
+# them.
+#
+# The metadata section provides information about the Deployment itself. This
+# includes the name, which uniquely identifies it in the cluster, and labels,
+# which are key-value pairs that help organize and find resources in the
+# cluster. Labels are used by other Kubernetes objects to select and manage
+# pods. They do not change how the Deployment behaves, but they are helpful for
+# organizing, grouping, and tracking resources. Later, when we create a Service 
+# or any other component that needs to find these pods, it will use these labels 
+#to select them.
+
+metadata:
+  # This name uniquely identifies our Deployment object within the cluster,
+  # allowing us to manage, monitor, and scale it using `kubectl` commands.
+  name: webapp-deployment
+
+  # Labels help us group and filter objects in the cluster. They do not change
+  # how the Deployment behaves, but they give us a way to organize our resources
+  # when the system grows and more components appear.
+  labels:
+    app: webapp
+    version: v1
+
+spec:
+  # ============================================================================
+  # 📦 REPLICAS
+  # ============================================================================
+
+  # Here we define how many instances of our application we want to keep
+  # running at all times. Kubernetes watches this value and makes sure the
+  # actual number of pods always matches it. If one pod fails or a node goes
+  # offline, the Deployment controller creates a replacement so the application
+  # stays available. This is one of the main reasons why Deployments are so
+  # resilient, since the desired state we describe here becomes something the
+  # cluster constantly works to maintain.
+  replicas: 3
+
+  # ============================================================================
+  # 🔎 SELECTOR
+  # ============================================================================
+
+  # The selector is how the Deployment identifies which pods belong to it. It
+  # matches the labels in the pod template below, and once the Deployment is
+  # created, we cannot change this selector without recreating the object. This
+  # strictness keeps the relationship stable, since the Deployment must always
+  # know exactly which pods it is meant to manage. If the labels stop matching,
+  # the Deployment would lose track of its pods, so the template and selector
+  # must align perfectly.
+  selector:
+    matchLabels:
+      app: webapp
+
+  # ==========================================================================
+  # 📦 POD TEMPLATE
+  # ==========================================================================
+
+  # The template section describes how each pod should look and behave. The
+  # Deployment uses this template every time it needs to create a new pod, so
+  # any change we make here will shape every replica. The cluster treats the
+  # template as a blueprint and always creates new pods that follow its rules.
+  template:
+    metadata:
+      # These labels are placed on every pod created from this template. They
+      # must match the selector above so the Deployment can manage the pods
+      # correctly.
+      labels:
+        app: webapp
+        version: v1
+
+    # ------------------------------------------------------------------------
+    # 🧩 POD SPEC
+    # ------------------------------------------------------------------------
+
+    # The pod spec explains what containers should run inside the pod and how
+    # they should operate. A pod can run several containers if they must share
+    # the same network or filesystem, but most application pods contain only
+    # one main container, which is what we do here.
+    spec:
+      # ======================================================================
+      # 🧱 CONTAINER DEFINITION
+      # ======================================================================
+
+      # Inside the pod we define one container that runs our application. We
+      # point to the image we built earlier and set a few options that instruct
+      # Kubernetes how to run it. The name we give here becomes visible in logs
+      # and debugging tools, so it helps to choose something descriptive. The
+      # image field tells Kubernetes which version of our container to use, and
+      # the pull policy controls when Kubernetes tries to fetch newer copies of
+      # it from a registry.
+      containers:
+      - name: webapp
+
+        # This is the container image that runs inside each pod. We build and tag
+        # this image ahead of time and push it to a location that the cluster can
+        # reach.
+        image: webapp:latest
+
+        # This policy tells Kubernetes when to pull the image. With this value we
+        # ask it to use the local image if it is already present on the node.
+        imagePullPolicy: IfNotPresent
+
+        # ====================================================================
+        # 🌐 PORTS
+        # ====================================================================
+
+        # Here we state which port the container listens on. This does not
+        # expose the port outside the cluster. It simply tells Kubernetes how
+        # to reach the process inside the container when other components need
+        # to make network requests to it. Later, a Service can reference this
+        # port when routing traffic to the pods.
+        ports:
+        - containerPort: 5000
+          name: http
+          protocol: TCP
+
+        # ====================================================================
+        # 🌱 ENVIRONMENT VARIABLES
+        # ====================================================================
+
+        # Environment variables give our application a simple way to read small
+        # pieces of configuration. They are often used to pass version numbers,
+        # runtime modes, or connection information. These variables are written
+        # directly into the container environment so our code can read them at
+        # startup.
+        env:
+        - name: APP_VERSION
+          value: "1.0.0"
+        - name: APP_ENV
+          value: "production"
+        - name: PORT
+          value: "5000"
+
+        # ====================================================================
+        # 📊 RESOURCE MANAGEMENT
+        # ====================================================================
+
+        # Kubernetes schedules pods onto nodes that have enough room for them.
+        # To help it make these decisions, we describe the amount of CPU and
+        # memory our container expects to use. Requests tell Kubernetes the
+        # smallest amount of resources the container needs in order to run, and
+        # limits describe the upper boundary it is allowed to consume. If the
+        # container uses more memory than its limit, it will be stopped. If it
+        # uses more CPU than the limit, it will be slowed down rather than
+        # stopped. These settings help keep the entire cluster balanced so that
+        # no single workload overwhelms a particular node.
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+
+        # ====================================================================
+        # ❤️ LIVENESS PROBE
+        # ====================================================================
+
+        # A liveness probe helps Kubernetes detect when a container has stopped
+        # making progress. The process might still be running, yet it may be
+        # stuck in a state from which it cannot recover. The liveness probe
+        # sends periodic requests to the application, and if several checks fail
+        # in a row, Kubernetes restarts the container to restore normal
+        # behavior. By giving the application a moment to start before the
+        # first check and by spacing out the intervals that follow, we help
+        # avoid unnecessary restarts during normal operation.
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+
+        # ====================================================================
+        # ⭐ READINESS PROBE
+        # ====================================================================
+
+        # A readiness probe focuses on whether a container is prepared to serve
+        # traffic. A container might be running yet still warming up, loading
+        # data, or waiting on another service. When this probe reports that the
+        # container is not ready, Kubernetes temporarily removes the pod from
+        # the list of addresses that receive requests. Once the probe reports
+        # success again, the pod returns to the pool of active replicas. This
+        # helps keep traffic flowing smoothly without sending requests to pods
+        # that cannot answer them yet.
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 2
+
+        # ====================================================================
+        # 🚦 STARTUP PROBE
+        # ====================================================================
+
+        # A startup probe helps with applications that need extra time before
+        # they can respond. During this startup period, the liveness and
+        # readiness probes stay inactive so they do not mistakenly trigger a
+        # restart. Once the startup probe succeeds, Kubernetes begins using the
+        # other probes to monitor the container. This setting is not always
+        # necessary, but we include it to show how Kubernetes supports gradual
+        # startup patterns.
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 0
+          periodSeconds: 5
+          failureThreshold: 12
+
+      # ========================================================================
+      # POD SETTINGS
+      # ========================================================================
+      #
+      # This restart policy asks Kubernetes to restart containers whenever they
+      # stop. This is common for long running applications that operate as
+      # services.
+      restartPolicy: Always
+
+      # This value gives the application time to finish its work before the pod
+      # is removed. It helps keep shutdowns smooth when the application is busy.
+      terminationGracePeriodSeconds: 30
+
+# ============================================================================
+# 🔧 DEPLOYMENT STRATEGY
+# ============================================================================
+
+# Kubernetes can replace old pods with new ones gradually. A rolling update
+# replaces each pod after the new one is in place. This avoids downtime and
+# keeps the application reachable while we deploy a new version. We leave this
+# section commented out to show how it would look without changing the default
+# behavior, since Kubernetes already performs rolling updates unless told
+# otherwise.
+#
+# strategy:
+#   type: RollingUpdate
+#   rollingUpdate:
+#     maxSurge: 1
+#     maxUnavailable: 0
