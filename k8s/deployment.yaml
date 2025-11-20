@@ -1,16 +1,29 @@
 # Kubernetes Deployment manifest for our Flask application
 
-# In Docker, we built a single container image that packaged our code,
-# dependencies, and server into one consistent artifact. In Kubernetes, we
-# decide how many copies of that container we want to run, how those copies
-# should behave, and how the cluster should react when something goes wrong.
-# A Deployment is the tool we use to describe this desired state. It acts like
-# a set of instructions that tell the cluster what to run, how many instances
-# to keep alive, and how to replace them when we update the image. The cluster
-# uses these instructions to make sure our application remains available even
-# when machines fail or when we ship a new version of our code.
+# In Docker, we built a container image that packaged all of our code, 
+# dependencies, and server into a single artifact. In Kubernetes, we decide how 
+# many copies of that container we want to run, how those copies should behave, 
+# and how the cluster should react when something goes wrong. A Deployment is 
+# the tool we use to describe this desired state. It acts like a set of 
+# instructions that tell the cluster what to run, how many instances to keep 
+# alive, and how to replace them when we update the image. The cluster uses 
+# these instructions to make sure our application remains available even when 
+# some machines fail or when we ship a new version of our code.
 
-apiVersion: apps/v1
+# ============================================================================
+# 📘 API VERSION AND KIND
+# ============================================================================
+
+# Kubernetes organizes everything into objects, and each object describes some
+# part of the system. A Deployment is one of these objects. It tells the system
+# to run several identical copies (or instances) of an application and replace 
+# them if they fail. These instances are packaged as pods, which are the 
+# smallest deployable units in Kubernetes. A pod can contain one or more 
+# containers that share the same network, storage, and specifications for how 
+# to run them. The 'apiVersion' field tells Kubernetes which version of the 
+# Kubernetes API we are using, while the 'kind' field tells Kubernetes which 
+# type of object we are creating.
+apiVersion: apps/v1 
 kind: Deployment
 
 # ============================================================================
@@ -19,22 +32,6 @@ kind: Deployment
 
 # Every object in Kubernetes carries metadata so the cluster can identify it,
 # organize it, and group it with related components. 
-
-# A Deployment is a Kubernetes object that manages a group of identical
-# application instances. These instances are called pods. A pod is the smallest
-# unit that Kubernetes schedules and runs. It is a container or a group of
-# containers with shared storage, network, and specification for how to run
-# them.
-#
-# The metadata section provides information about the Deployment itself. This
-# includes the name, which uniquely identifies it in the cluster, and labels,
-# which are key-value pairs that help organize and find resources in the
-# cluster. Labels are used by other Kubernetes objects to select and manage
-# pods. They do not change how the Deployment behaves, but they are helpful for
-# organizing, grouping, and tracking resources. Later, when we create a Service 
-# or any other component that needs to find these pods, it will use these labels 
-#to select them.
-
 metadata:
   # This name uniquely identifies our Deployment object within the cluster,
   # allowing us to manage, monitor, and scale it using `kubectl` commands.
@@ -42,12 +39,24 @@ metadata:
 
   # Labels help us group and filter objects in the cluster. They do not change
   # how the Deployment behaves, but they give us a way to organize our resources
-  # when the system grows and more components appear.
+  # when the system grows and we have many different components running. 
   labels:
     app: webapp
     version: v1
 
+
+# ============================================================================
+# 📦 DEPLOYMENT SPECIFICATION
+# ============================================================================
+
+# The 'spec' section is where we declare what we want the Deployment to do.
+# Everything inside this section describes the desired state of our 
+# application. Kubernetes keeps comparing the current state with this desired 
+# state and tries to bring the system back into alignment whenever it notices 
+# a difference. This is one of the core ideas in Kubernetes and one of the main
+# reasons why it is able to restart containers and heal itself automatically.
 spec:
+
   # ============================================================================
   # 📦 REPLICAS
   # ============================================================================
@@ -121,6 +130,11 @@ spec:
         # reach.
         image: webapp:latest
 
+        # The image pull policy tells Kubernetes when to download the image.
+        # With the 'IfNotPresent' value, we tell it only pull the image
+        # if it is not already present on the node, though for a tag like 'latest', 
+        # we might prefer 'Always' to ensure we get the newest version every time.
+
         # This policy tells Kubernetes when to pull the image. With this value we
         # ask it to use the local image if it is already present on the node.
         imagePullPolicy: IfNotPresent
@@ -143,11 +157,12 @@ spec:
         # 🌱 ENVIRONMENT VARIABLES
         # ====================================================================
 
-        # Environment variables give our application a simple way to read small
-        # pieces of configuration. They are often used to pass version numbers,
-        # runtime modes, or connection information. These variables are written
-        # directly into the container environment so our code can read them at
-        # startup.
+        # These environment variables are passed to the application when the
+        # container starts. They give the app information about its runtime
+        # environment so it can configure itself accordingly. We set them here
+        # so that all replicas start with the same values, and we can later
+        # override them using ConfigMaps or Secrets when we need more flexible
+        # configuration.
         env:
         - name: APP_VERSION
           value: "1.0.0"
@@ -171,24 +186,22 @@ spec:
         # no single workload overwhelms a particular node.
         resources:
           requests:
-            memory: "128Mi"
-            cpu: "100m"
+            memory: "128Mi"   # 128 megabytes
+            cpu: "100m"       # 0.1 CPU cores (100 millicores)
           limits:
-            memory: "256Mi"
-            cpu: "200m"
+            memory: "256Mi"   # 256 megabytes
+            cpu: "200m"       # 0.2 CPU cores
 
         # ====================================================================
         # ❤️ LIVENESS PROBE
         # ====================================================================
 
-        # A liveness probe helps Kubernetes detect when a container has stopped
-        # making progress. The process might still be running, yet it may be
-        # stuck in a state from which it cannot recover. The liveness probe
-        # sends periodic requests to the application, and if several checks fail
-        # in a row, Kubernetes restarts the container to restore normal
-        # behavior. By giving the application a moment to start before the
-        # first check and by spacing out the intervals that follow, we help
-        # avoid unnecessary restarts during normal operation.
+        # A liveness probe tells Kubernetes how to check whether our container is
+        # still functioning. If this probe fails several times in a row, the
+        # container is restarted. This helps the application recover from
+        # situations where it becomes stuck or enters a state it cannot exit on
+        # its own. We use a simple HTTP GET request to the /health endpoint, and
+        # we allow the container a bit of time to start before the first check.
         livenessProbe:
           httpGet:
             path: /health
@@ -201,17 +214,20 @@ spec:
           failureThreshold: 3
 
         # ====================================================================
-        # ⭐ READINESS PROBE
+        # 🟢 READINESS PROBE
         # ====================================================================
 
         # A readiness probe focuses on whether a container is prepared to serve
         # traffic. A container might be running yet still warming up, loading
         # data, or waiting on another service. When this probe reports that the
         # container is not ready, Kubernetes temporarily removes the pod from
-        # the list of addresses that receive requests. Once the probe reports
-        # success again, the pod returns to the pool of active replicas. This
-        # helps keep traffic flowing smoothly without sending requests to pods
-        # that cannot answer them yet.
+        # the list of addresses that can receive requests. When the probe
+        # finally succeeds, the pod is added back to the pool so that it can
+        # start receiving traffic again. This helps ensure that users do not 
+        # experience errors or delays because requests are being sent to pods 
+        # that are not yet prepared to handle them. Here, we use the same 
+        # /health endpoint as the liveness probe, but we start checking it 
+        # sooner and with a shorter timeout.
         readinessProbe:
           httpGet:
             path: /health
@@ -224,16 +240,16 @@ spec:
           failureThreshold: 2
 
         # ====================================================================
-        # 🚦 STARTUP PROBE
+        # ⏳ STARTUP PROBE
         # ====================================================================
 
         # A startup probe helps with applications that need extra time before
         # they can respond. During this startup period, the liveness and
         # readiness probes stay inactive so they do not mistakenly trigger a
-        # restart. Once the startup probe succeeds, Kubernetes begins using the
-        # other probes to monitor the container. This setting is not always
-        # necessary, but we include it to show how Kubernetes supports gradual
-        # startup patterns.
+        # restart of the container. Once the startup probe succeeds, Kubernetes 
+        # begins using the other probes to monitor the container. This setting 
+        # is not always necessary, but we include it to show how Kubernetes 
+        # supports gradual startup patterns. 
         startupProbe:
           httpGet:
             path: /health
@@ -243,9 +259,16 @@ spec:
           failureThreshold: 12
 
       # ========================================================================
-      # POD SETTINGS
+      # 🔁 POD RESTART POLICY
       # ========================================================================
-      #
+      
+      # The restart policy describes what Kubernetes should do if the container
+      # inside the Pod stops. For almost all Deployments, we use the 'Always'
+      # policy, which tells Kubernetes to start the container again regardless
+      # of how it exited. The termination grace period defines how long Kubernetes
+      # waits before forcefully stopping a container during shutdown. This gives
+      # the application time to complete ongoing work and exit cleanly.
+
       # This restart policy asks Kubernetes to restart containers whenever they
       # stop. This is common for long running applications that operate as
       # services.
