@@ -1,0 +1,156 @@
+# Kubernetes Service manifest for our Flask application
+
+# While the Deployment manages the lifecycle of our Pods, the Service manages 
+# how we actually talk to them. In Kubernetes, Pods are "ephemeral". They are 
+# born and they die frequently (due to scaling, updates, or crashes). Every 
+# time a Pod is recreated, it gets a brand-new internal IP address. If we 
+# tried to connect to those IPs directly, our application would break 
+# constantly. A Service acts as a "stable front door." It provides a single, 
+# permanent IP address and DNS name that never changes, even as the 
+# underlying Pods come and go. It acts as a smart traffic cop, listening for 
+# incoming requests and distributing them across all the healthy instances 
+# of our application.
+
+# ============================================================================
+# 📝 API VERSION AND KIND
+# ============================================================================
+
+# The `apiVersion` field tells Kubernetes which version of the Kubernetes API
+# we are using to define this object, while the `kind` field specifies the type
+# of object we are creating. For a Service object, we use the core API group,
+# which is simply `v1`, because Services are fundamental building blocks that
+# have been stable since the earliest versions of Kubernetes.
+apiVersion: v1
+kind: Service
+
+# ============================================================================
+# 🏷️ METADATA
+# ============================================================================
+
+
+metadata:
+  name: webapp-service
+  labels:
+    app: webapp
+
+
+# ============================================================================
+# 📜 SERVICE SPECIFICATION
+# ============================================================================
+
+# The `spec` defines the behavior of our "front door." It determines who can 
+# reach the application (internal vs. external), how the Service finds the 
+# right Pods to talk to, and which ports should be open for traffic.
+spec:
+
+  # ============================================================================
+  # 🎯 SERVICE TYPE
+  # ============================================================================
+  
+  # The Service type determines how the Service is exposed to the network.
+  # Different types serve different use cases, from internal-only access to
+  # full external load balancing. The `ClusterIP` type creates an internal
+  # IP address that is only reachable from within the cluster, which is ideal
+  # for communication between microservices. The `NodePort` type exposes the
+  # Service on a static port on each node's IP address, making it accessible
+  # from outside the cluster. The `LoadBalancer` type provisions an external
+  # load balancer in cloud environments like AWS, GCP, or Azure, automatically
+  # routing external traffic to the Service. The `ExternalName` type maps the
+  # Service to an external DNS name, acting as a simple DNS alias for resources
+  # outside the cluster. For local development environments like Minikube, we
+  # typically use `NodePort` because it provides a straightforward way to
+  # access our application from the host machine without additional cloud
+  # infrastructure.
+  type: NodePort
+  
+  # ============================================================================
+  # 🔍 SELECTOR
+  # ============================================================================
+  
+  # Which pods does this service route to?
+  # Matches pods with these labels
+  # Should match the deployment's pod labels
+  selector:
+    app: webapp
+  
+  # ============================================================================
+  # 🌐 PORTS
+  # ============================================================================
+  
+  # Ports define how traffic flows into and out of the Service. A Service can
+  # expose multiple ports, each with its own protocol and port mappings, which
+  # is useful for applications that listen on multiple ports (like HTTP on 80
+  # and HTTPS on 443, or a main application port plus a metrics port). Each
+  # port mapping creates a logical pathway that translates external port numbers
+  # to internal container ports, abstracting away the details of where and how
+  # traffic flows within the cluster.
+  # This section maps incoming traffic on the Service to the containers inside
+  # the selected Pods. The Service listens on `port` (exposed to clients) and
+  # forwards traffic to `targetPort` on the Pod. For NodePort Services, a
+  # high-level `nodePort` can also be specified to make the Service reachable
+  # externally via <NodeIP>:<nodePort>.
+  ports:
+  - name: web-http
+    # Protocol
+    protocol: TCP
+    
+    # Port on the service
+    # Other pods/services connect to this port
+    port: 80
+    
+    # Port on the container (must match containerPort in deployment)
+    targetPort: 5000
+    
+    # NodePort: Static port on each node (30000-32767 range)
+    # Optional - K8s assigns one automatically if not specified
+    # For Minikube, we can access at: http://localhost:30080
+    nodePort: 30080
+  
+  # ============================================================================
+  # 🤝 SESSION AFFINITY
+  # ============================================================================
+  
+  # Session affinity / sticky sessions
+  # None: Random load balancing (default)
+  # ClientIP: Route requests from same IP to same pod
+  #
+  # Usually None is fine (stateless apps)
+  # Use ClientIP if you need session persistence
+  sessionAffinity: None
+
+# ============================================================================
+# 🧠 ⚙️ HOW SERVICE WORKS
+# ============================================================================
+#
+# 1. Service creates stable DNS entry: webapp-service.default.svc.cluster.local
+# 2. Service watches for pods matching selector (app: webapp)
+# 3. Service maintains list of healthy pod IPs (using readiness probes)
+# 4. When request arrives at service:
+#    - Load balances across healthy pods
+#    - Forwards to targetPort on selected pod
+# 5. If pod becomes unhealthy (readiness probe fails):
+#    - Service removes it from rotation
+#    - No traffic sent until healthy again
+#
+# This is how K8s achieves:
+# - Load balancing
+# - High availability
+# - Zero-downtime deployments
+
+# ============================================================================
+# 🌎 HOW SERVICE DISCOVERY WORKS
+# ============================================================================
+#
+# Other pods can reach this service via:
+#
+# 1. DNS (recommended):
+#    http://webapp-service (short name, same namespace)
+#    http://webapp-service.default.svc.cluster.local (full name)
+#
+# 2. Environment variables (legacy):
+#    WEBAPP_SERVICE_SERVICE_HOST
+#    WEBAPP_SERVICE_SERVICE_PORT
+#
+# 3. Direct ClusterIP:
+#    http://<cluster-ip>:80
+#    (not recommended - IP can change)
